@@ -1,41 +1,55 @@
-"""
-Migration script to add transport_cost column to products table
-Run this once: python migrate_add_transport_cost.py
-"""
-import sqlite3
-import os
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy.orm import relationship
+from database import Base
+import datetime
 
-DB_PATH = 'agri_insights.db'
+class User(Base):
+    __tablename__ = "users"
 
-def migrate():
-    if not os.path.exists(DB_PATH):
-        print(f"Database {DB_PATH} does not exist. It will be created automatically on next backend start.")
-        return
+    id = Column(Integer, primary_key=True, index=True)
+    wallet_address = Column(String, unique=True, index=True)
+    role = Column(String)  # 'farmer', 'buyer', 'logistics'
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(String, primary_key=True, index=True) # Using String ID to match frontend 'PRD-...' format if needed, or we can use Integer and let DB handle it. Let's stick to String to match current frontend generation or switch to DB auto-increment.
+    # Frontend generates IDs like `PRD-${Date.now()}`. Let's persist that for now or allow server to generate.
+    # To keep it simple and consistent with frontend logic so far, let's allow String IDs.
     
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    try:
-        # Check if column already exists
-        cursor.execute("PRAGMA table_info(products)")
-        columns = [column[1] for column in cursor.fetchall()]
-        
-        if 'transport_cost' in columns:
-            print("Column 'transport_cost' already exists. Migration not needed.")
-            conn.close()
-            return
-        
-        # Add the column
-        print("Adding transport_cost column to products table...")
-        cursor.execute("ALTER TABLE products ADD COLUMN transport_cost REAL")
-        conn.commit()
-        print("✓ Migration successful! transport_cost column added.")
-        
-    except Exception as e:
-        print(f"✗ Migration failed: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
+    crop_type = Column(String, index=True)
+    commodity_group = Column(String)
+    quantity = Column(Float)
+    price = Column(Float)
+    suggested_price = Column(Float)
+    quality_grade = Column(Integer)
+    market_location = Column(String)
+    state = Column(String)
+    season = Column(String)
+    farmer_address = Column(String, ForeignKey("users.wallet_address"))
+    transport_cost = Column(Float)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_sold = Column(Boolean, default=False)
 
-if __name__ == "__main__":
-    migrate()
+    # Relationships
+    farmer = relationship("User", foreign_keys=[farmer_address])
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(String, primary_key=True, index=True) # 'ORD-...'
+    product_id = Column(String, ForeignKey("products.id"))
+    buyer_address = Column(String, ForeignKey("users.wallet_address"))
+    quantity = Column(Float)
+    total_price = Column(Float)
+    farmer_location = Column(String)
+    buyer_location = Column(String)
+    status = Column(String, default="pending") # 'pending', 'picked_up', 'in_transit', 'delivered'
+    tx_hash = Column(String)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    estimated_delivery = Column(DateTime)
+
+    # Relationships
+    product = relationship("Product")
+    buyer = relationship("User", foreign_keys=[buyer_address])
