@@ -1,76 +1,105 @@
 import { motion } from "framer-motion";
-import { Leaf, Github, Twitter, Linkedin } from "lucide-react";
+import { ArrowRight, TrendingUp } from "lucide-react";
+import { Button } from "./ui/button";
+import { useNavigate } from "react-router-dom";
 
-const Footer = () => {
+const HeroSection = () => {
+  const navigate = useNavigate();
+
   return (
-    <footer className="py-16 border-t border-border">
-      <div className="container mx-auto px-4">
-        <div className="grid md:grid-cols-4 gap-12 mb-12">
-          {/* Brand */}
-          <div className="md:col-span-2">
-            <motion.a
-              href="#"
-              className="flex items-center gap-2 mb-4"
-              whileHover={{ scale: 1.02 }}
+    <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
+      <div className="container mx-auto px-4 py-20">
+        <div className="max-w-4xl mx-auto text-center">
+          {/* Badge */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+            <span className="text-sm font-medium text-primary">
+              Now with 2026 Market Data
+            </span>
+          </motion.div>
+
+          {/* Main Heading */}
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-5xl md:text-7xl font-extrabold leading-tight mb-6"
+          >
+            Transform{" "}
+            <span className="text-gradient">Agriculture</span>
+            <br />
+            Into Knowledge
+          </motion.h1>
+
+          {/* Subheading */}
+          <motion.p
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
+          >
+            Get instant ML-powered price predictions and market demand forecasts 
+            for Millets & Oilseeds. Make smarter decisions with AI-driven insights.
+          </motion.p>
+
+          {/* CTA Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+          >
+            <Button 
+              variant="hero" 
+              size="lg" 
+              className="group"
+              onClick={() => navigate("/dashboard")}
             >
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Leaf className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">
-                Agri<span className="text-primary">Predict</span>
-              </span>
-            </motion.a>
-            <p className="text-muted-foreground max-w-sm mb-6">
-              Empowering farmers and traders with AI-driven agricultural insights for smarter decision-making.
-            </p>
-            <div className="flex items-center gap-4">
-              <a href="#" className="p-2 rounded-lg bg-muted hover:bg-primary/10 transition-colors">
-                <Twitter className="w-5 h-5 text-muted-foreground hover:text-primary" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-muted hover:bg-primary/10 transition-colors">
-                <Github className="w-5 h-5 text-muted-foreground hover:text-primary" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-muted hover:bg-primary/10 transition-colors">
-                <Linkedin className="w-5 h-5 text-muted-foreground hover:text-primary" />
-              </a>
+              Start Predicting
+              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+            </Button>
+            <Button 
+              variant="heroOutline" 
+              size="lg"
+              onClick={() => navigate("/dashboard")}
+            >
+              <TrendingUp className="w-5 h-5" />
+              View Trends
+            </Button>
+          </motion.div>
+
+          {/* Trust indicators */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className="mt-16 flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary"></div>
+              <span>Trusted by 10,000+ farmers</span>
             </div>
-          </div>
-
-          {/* Links */}
-          <div>
-            <h4 className="font-bold mb-4">Product</h4>
-            <ul className="space-y-3">
-              <li><a href="#features" className="text-muted-foreground hover:text-primary transition-colors">Features</a></li>
-              <li><a href="#how-it-works" className="text-muted-foreground hover:text-primary transition-colors">How It Works</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">API Access</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Documentation</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-bold mb-4">Company</h4>
-            <ul className="space-y-3">
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">About Us</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Blog</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Careers</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Contact</a></li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            © 2026 AgriPredict. All rights reserved.
-          </p>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
-          </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-secondary"></div>
+              <span>100% Free to use</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-accent"></div>
+              <span>Real-time data</span>
+            </div>
+          </motion.div>
         </div>
       </div>
-    </footer>
+    </section>
   );
 };
 
-export default Footer;
+export default HeroSection;

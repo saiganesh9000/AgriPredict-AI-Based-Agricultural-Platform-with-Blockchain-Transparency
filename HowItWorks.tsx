@@ -1,69 +1,76 @@
 import { motion } from "framer-motion";
+import { Leaf, Github, Twitter, Linkedin } from "lucide-react";
 
-const FloatingBlobs = () => {
+const Footer = () => {
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-      {/* Primary green blob */}
-      <motion.div
-        className="floating-blob w-[600px] h-[600px] bg-blob-1 top-[-200px] left-[-200px]"
-        animate={{
-          x: [0, 50, -30, 0],
-          y: [0, -40, 30, 0],
-          scale: [1, 1.1, 0.95, 1],
-        }}
-        transition={{
-          duration: 20,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-      
-      {/* Golden blob */}
-      <motion.div
-        className="floating-blob w-[500px] h-[500px] bg-blob-2 top-[20%] right-[-150px]"
-        animate={{
-          x: [0, -60, 40, 0],
-          y: [0, 50, -30, 0],
-          scale: [1, 0.9, 1.1, 1],
-        }}
-        transition={{
-          duration: 25,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-      
-      {/* Sky blue blob */}
-      <motion.div
-        className="floating-blob w-[450px] h-[450px] bg-blob-3 bottom-[-100px] left-[30%]"
-        animate={{
-          x: [0, 40, -50, 0],
-          y: [0, -30, 40, 0],
-          scale: [1, 1.05, 0.95, 1],
-        }}
-        transition={{
-          duration: 22,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
+    <footer className="py-16 border-t border-border">
+      <div className="container mx-auto px-4">
+        <div className="grid md:grid-cols-4 gap-12 mb-12">
+          {/* Brand */}
+          <div className="md:col-span-2">
+            <motion.a
+              href="#"
+              className="flex items-center gap-2 mb-4"
+              whileHover={{ scale: 1.02 }}
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                <Leaf className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <span className="text-xl font-bold text-foreground">
+                Agri<span className="text-primary">Predict</span>
+              </span>
+            </motion.a>
+            <p className="text-muted-foreground max-w-sm mb-6">
+              Empowering farmers and traders with AI-driven agricultural insights for smarter decision-making.
+            </p>
+            <div className="flex items-center gap-4">
+              <a href="#" className="p-2 rounded-lg bg-muted hover:bg-primary/10 transition-colors">
+                <Twitter className="w-5 h-5 text-muted-foreground hover:text-primary" />
+              </a>
+              <a href="#" className="p-2 rounded-lg bg-muted hover:bg-primary/10 transition-colors">
+                <Github className="w-5 h-5 text-muted-foreground hover:text-primary" />
+              </a>
+              <a href="#" className="p-2 rounded-lg bg-muted hover:bg-primary/10 transition-colors">
+                <Linkedin className="w-5 h-5 text-muted-foreground hover:text-primary" />
+              </a>
+            </div>
+          </div>
 
-      {/* Small accent blob */}
-      <motion.div
-        className="floating-blob w-[300px] h-[300px] bg-blob-1/50 bottom-[30%] right-[10%]"
-        animate={{
-          x: [0, -30, 20, 0],
-          y: [0, 20, -40, 0],
-          scale: [1, 1.15, 0.9, 1],
-        }}
-        transition={{
-          duration: 18,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-    </div>
+          {/* Links */}
+          <div>
+            <h4 className="font-bold mb-4">Product</h4>
+            <ul className="space-y-3">
+              <li><a href="#features" className="text-muted-foreground hover:text-primary transition-colors">Features</a></li>
+              <li><a href="#how-it-works" className="text-muted-foreground hover:text-primary transition-colors">How It Works</a></li>
+              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">API Access</a></li>
+              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Documentation</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-bold mb-4">Company</h4>
+            <ul className="space-y-3">
+              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">About Us</a></li>
+              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Blog</a></li>
+              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Careers</a></li>
+              <li><a href="#" className="text-muted-foreground hover:text-primary transition-colors">Contact</a></li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            © 2026 AgriPredict. All rights reserved.
+          </p>
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 };
 
-export default FloatingBlobs;
+export default Footer;

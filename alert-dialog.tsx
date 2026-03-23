@@ -1,843 +1,384 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Tractor,
-  TrendingUp,
-  Tag,
+  Truck,
+  MapPin,
+  Calendar,
+  Clock,
+  CheckCircle,
   Package,
-  Plus,
-  Minus,
-  IndianRupee,
-  BarChart3,
+  Wallet,
   Loader2,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import {
-  predictPrice,
-  forecastDemand,
-  createProduct,
-  loginUser,
-  type DemandForecastResponse,
-} from "@/services/api";
+import { getOrders, updateOrderStatus, loginUser } from "@/services/api";
 
-const marketLocations = [
-  "Adoni",
-  "Alur",
-  "Banaganapalli",
-  "Chintapally",
-  "Kurnool",
-  "Nandyal",
-  "Rapur",
-  "Tuni",
-  "Yemmiganur",
-];
-const commodityGroups = ["Millet", "Oilseed"];
-const seasons = ["Kharif", "Rabi", "Summer"];
-const cropTypes: Record<string, string[]> = {
-  Millet: [
-    "Jowar (Sorghum)",
-    "Foxtail Millet (Navane)",
-    "Bajra (Pearl Millet/Cumbu)",
-    "Ragi (Finger Millet)",
-  ],
-  Oilseed: [
-    "Sunflower",
-    "Castor Seed",
-    "Soyabean",
-    "Sesamum (Sesame, Gingelly, Til)",
-  ],
-};
-const states = ["Andhra Pradesh"];
-
-export interface Product {
-  id: string;
-  cropType: string;
-  commodityGroup: string;
-  quantity: number;
-  price: number;
-  suggestedPrice: number;
-  qualityGrade: number;
-  marketLocation: string;
-  state: string;
-  season: string;
-  farmerAddress: string;
-  transportCost?: number;
-  createdAt: Date;
+// Ethereum provider type
+interface EthereumProvider {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  isMetaMask?: boolean;
 }
 
-const FarmerDashboard = () => {
-  const { walletAddress } = useWallet();
-  const [activeTab, setActiveTab] = useState<"price" | "demand" | "sell">(
-    "price",
+declare global {
+  interface Window {
+    ethereum?: EthereumProvider;
+  }
+}
+
+interface Order {
+  id: string;
+  productName: string;
+  quantity: number;
+  buyerAddress: string;
+  farmerAddress: string;
+  farmerLocation: string;
+  buyerLocation: string;
+  status: "pending" | "picked_up" | "in_transit" | "delivered";
+  createdAt: Date;
+  estimatedDelivery: Date;
+  txHash: string;
+}
+
+const statusConfig: Record<
+  Order["status"],
+  { label: string; color: string; icon: any }
+> = {
+  pending: {
+    label: "Pending Pickup",
+    color: "bg-yellow-500/20 text-yellow-700",
+    icon: Clock,
+  },
+  picked_up: {
+    label: "Picked Up",
+    color: "bg-blue-500/20 text-blue-700",
+    icon: Package,
+  },
+  in_transit: {
+    label: "In Transit",
+    color: "bg-purple-500/20 text-purple-700",
+    icon: Truck,
+  },
+  delivered: {
+    label: "Delivered",
+    color: "bg-green-500/20 text-green-700",
+    icon: CheckCircle,
+  },
+};
+
+const LogisticsDashboard = () => {
+  const { walletAddress, connectWallet } = useWallet();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [activeFilter, setActiveFilter] = useState<"all" | Order["status"]>(
+    "all",
   );
   const [loading, setLoading] = useState(false);
 
-  // --- Price Prediction State ---
-  const [date, setDate] = useState("2026/01/18");
-  const [marketLocation, setMarketLocation] = useState("Adoni");
-  const [qualityGrade, setQualityGrade] = useState(3);
-  const [commodityGroup, setCommodityGroup] = useState<string>("Millet");
-  const [season, setSeason] = useState("Kharif");
-  const [transportCost, setTransportCost] = useState(20.0);
-  const [cropType, setCropType] = useState("Jowar (Sorghum)");
-  const [quantity, setQuantity] = useState(100.0);
-  const [demandIndex, setDemandIndex] = useState([1.0]);
-  const [state, setState] = useState("Andhra Pradesh");
-
-  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
-  const [sellingPrice, setSellingPrice] = useState(0);
-
-  // Sync global wallet to Farmer Role
   useEffect(() => {
     if (walletAddress) {
-      // Register as Farmer when entering this dashboard or when wallet connects
+      // Register/Login as Logistics
       loginUser({
         wallet_address: walletAddress,
-        role: "farmer",
+        role: "logistics",
       }).catch(console.error);
+
+      fetchOrders();
     }
   }, [walletAddress]);
 
-  // --- Demand Forecasting State ---
-  const [demandDate, setDemandDate] = useState("2026/01/18");
-  const [dCommodityGroup, setDCommodityGroup] = useState("Millet");
-  const [dCropType, setDCropType] = useState("Jowar (Sorghum)");
-  const [dState, setDState] = useState("Andhra Pradesh");
-  const [dMarketLocation, setDMarketLocation] = useState("Adoni");
-  const [dSeason, setDSeason] = useState("Kharif");
-  const [totalQtySold, setTotalQtySold] = useState(1000.0);
-  const [avgPrice, setAvgPrice] = useState(50.0);
-  const [histDemand, setHistDemand] = useState(500.0);
-  const [priceTrend, setPriceTrend] = useState(50.0);
-  const [estProduction, setEstProduction] = useState(10000.0);
-  const [policyScore, setPolicyScore] = useState([0.5]);
-  const [weatherIndex, setWeatherIndex] = useState([0.5]);
-  const [festivalFlag, setFestivalFlag] = useState("0");
-
-  const [demandResult, setDemandResult] =
-    useState<DemandForecastResponse | null>(null);
-
-  const handleGetPriceSuggestion = async () => {
+  const fetchOrders = async () => {
     setLoading(true);
     try {
-      const response = await predictPrice({
-        date,
-        commodity_group: commodityGroup,
-        crop_type: cropType,
-        state_name: state,
-        market_location: marketLocation,
-        quantity_kg: quantity,
-        quality_grade: qualityGrade,
-        season: season,
-        transport_cost: transportCost,
-        demand_index: demandIndex[0],
-      });
+      const data = await getOrders();
+      // Map API Order to Frontend Order Interface
+      // Note: Backend doesn't return productName directly (it's in relation).
+      // For Phase 1 simplified, we might miss productName if not joined.
+      // But let's assume raw data for now.
 
-      const price = response.predicted_price;
-      setSuggestedPrice(price);
-      setSellingPrice(price); // Pre-fill selling price
-      toast.success(`Price suggestion received: ₹${price}`);
+      const mappedOrders: Order[] = data.map((o: any) => ({
+        id: o.id,
+        productName: o.product_name, // Now returned by backend
+        quantity: o.quantity,
+        buyerAddress: o.buyer_address,
+        farmerAddress: o.farmer_address,
+        farmerLocation: o.farmer_location,
+        buyerLocation: o.buyer_location,
+        status: o.status,
+        createdAt: new Date(o.created_at),
+        estimatedDelivery: new Date(o.estimated_delivery),
+        txHash: o.tx_hash,
+      }));
+
+      setOrders(mappedOrders);
     } catch (error) {
-      toast.error("Failed to get price suggestion. Is the backend running?");
-      console.error(error);
+      console.error("Failed to fetch orders:", error);
+      toast.error("Failed to refresh orders");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGetDemandForecast = async () => {
-    setLoading(true);
+  const handleUpdateStatus = async (
+    orderId: string,
+    newStatus: Order["status"],
+  ) => {
     try {
-      const response = await forecastDemand({
-        date: demandDate,
-        commodity_group: dCommodityGroup,
-        crop_type: dCropType,
-        state_name: dState,
-        market_location: dMarketLocation,
-        season: dSeason,
-        total_quantity_sold: totalQtySold,
-        avg_price_per_kg: avgPrice,
-        historical_demand_7d: histDemand,
-        price_trend_7d: priceTrend,
-        estimated_production_kg: estProduction,
-        policy_support_score: policyScore[0],
-        festival_flag: parseInt(festivalFlag),
-        weather_index: weatherIndex[0],
-      });
-
-      setDemandResult(response);
-      toast.success(`Demand forecasted: ${response.demand_level}`);
+      await updateOrderStatus(orderId, newStatus);
+      toast.success(`Order status updated to ${statusConfig[newStatus].label}`);
+      fetchOrders(); // Refresh
     } catch (error) {
-      toast.error("Failed to forecast demand. Is the backend running?");
-      console.error(error);
-    } finally {
-      setLoading(false);
+      toast.error("Failed to update status");
     }
   };
 
-  const handleListForSale = async () => {
-    if (!suggestedPrice) {
-      toast.error("Please get price suggestion first!");
-      return;
-    }
-
-    if (!walletAddress) {
-      toast.error("Please connect wallet first!");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const productId = `PRD-${Date.now()}`;
-      await createProduct({
-        id: productId,
-        crop_type: cropType,
-        commodity_group: commodityGroup,
-        quantity,
-        price: sellingPrice,
-        suggested_price: suggestedPrice,
-        quality_grade: qualityGrade,
-        market_location: marketLocation,
-        state,
-        season,
-        farmer_address: walletAddress,
-        transport_cost: transportCost,
-      });
-
-      toast.success("Product listed for sale on Marketplace!");
-
-      // Reset form partially
-      setSuggestedPrice(null);
-      setSellingPrice(0);
-      setActiveTab("price"); // Go back to start
-    } catch (error) {
-      toast.error("Failed to list product");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startSelling = () => {
-    setActiveTab("sell");
-  };
+  const filteredOrders =
+    activeFilter === "all"
+      ? orders
+      : orders.filter((order) => order.status === activeFilter);
 
   return (
     <div className="space-y-6">
-      {/* Role Header */}
+      {/* Logistics Header */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <Tractor className="w-6 h-6 text-primary" />
+          <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
+            <Truck className="w-6 h-6 text-accent" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold">Farmer Dashboard</h2>
+            <h2 className="text-2xl font-bold">Logistics & Supply Chain</h2>
             <p className="text-muted-foreground">
-              Manage your crops, get insights, and sell directly
+              Track and manage deliveries with blockchain verification
             </p>
           </div>
         </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={fetchOrders}
+            disabled={loading || !walletAddress}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        <Button
-          variant={activeTab === "price" ? "default" : "outline"}
-          onClick={() => setActiveTab("price")}
-          className="flex items-center gap-2"
-        >
-          <TrendingUp className="w-4 h-4" />
-          Price Suggestion
-        </Button>
-        <Button
-          variant={activeTab === "demand" ? "default" : "outline"}
-          onClick={() => setActiveTab("demand")}
-          className="flex items-center gap-2"
-        >
-          <BarChart3 className="w-4 h-4" />
-          Demand Forecast
-        </Button>
-        <Button
-          variant={activeTab === "sell" ? "default" : "outline"}
-          onClick={() => setActiveTab("sell")}
-          className="flex items-center gap-2"
-        >
-          <Tag className="w-4 h-4" />
-          Sell Crop
-        </Button>
-      </div>
-
-      <AnimatePresence mode="wait">
-        {activeTab === "price" && (
-          <motion.div
-            key="price"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="glass-card p-6"
+      {!walletAddress ? (
+        <div className="glass-card p-12 text-center">
+          <Truck className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+          <h3 className="text-xl font-semibold mb-2">
+            Connect Wallet to View Orders
+          </h3>
+          <p className="text-muted-foreground mb-4">
+            You need to act as a Logistics Provider to manage shipments.
+          </p>
+          <Button
+            onClick={connectWallet}
+            variant="hero"
+            className="bg-accent hover:bg-accent/90 text-white"
           >
-            <div className="flex items-center gap-2 mb-6">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold">
-                ML-Powered Price Suggestion
-              </h3>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Common Fields */}
-              <div>
-                <label className="form-label">Date</label>
-                <input
-                  type="text"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="form-field"
-                  placeholder="YYYY/MM/DD"
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Commodity Group</label>
-                <Select
-                  value={commodityGroup}
-                  onValueChange={(val) => {
-                    setCommodityGroup(val);
-                    setCropType(cropTypes[val][0]);
-                  }}
-                >
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {commodityGroups.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="form-label">Crop Type</label>
-                <Select value={cropType} onValueChange={setCropType}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cropTypes[commodityGroup].map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="form-label">State</label>
-                <Select value={state} onValueChange={setState}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {states.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="form-label">Market Location</label>
-                <Select
-                  value={marketLocation}
-                  onValueChange={setMarketLocation}
-                >
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {marketLocations.map((l) => (
-                      <SelectItem key={l} value={l}>
-                        {l}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="form-label">Season</label>
-                <Select value={season} onValueChange={setSeason}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {seasons.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Specific Fields */}
-              <div>
-                <label className="form-label">Quantity (kg)</label>
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Quality Grade (1-5)</label>
-                <input
-                  type="number"
-                  value={qualityGrade}
-                  onChange={(e) => setQualityGrade(Number(e.target.value))}
-                  min={1}
-                  max={5}
-                  className="form-field"
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Transport Cost (₹)</label>
-                <input
-                  type="number"
-                  value={transportCost}
-                  onChange={(e) => setTransportCost(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-
-              <div className="md:col-span-3">
-                <label className="form-label">
-                  Demand Index: {demandIndex[0].toFixed(2)}
-                </label>
-                <Slider
-                  value={demandIndex}
-                  onValueChange={setDemandIndex}
-                  min={0}
-                  max={2}
-                  step={0.1}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-4">
+            Connect Wallet
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Status Filters */}
+          <div className="flex flex-wrap gap-2 pb-4">
+            <Button
+              variant={activeFilter === "all" ? "default" : "outline"}
+              onClick={() => setActiveFilter("all")}
+              className={
+                activeFilter === "all"
+                  ? "bg-accent text-white hover:bg-accent/90"
+                  : ""
+              }
+            >
+              All Orders
+            </Button>
+            {(Object.keys(statusConfig) as Order["status"][]).map((status) => (
               <Button
-                variant="hero"
-                onClick={handleGetPriceSuggestion}
-                disabled={loading}
+                key={status}
+                variant={activeFilter === status ? "default" : "outline"}
+                onClick={() => setActiveFilter(status)}
+                className={
+                  activeFilter === status
+                    ? statusConfig[status].color
+                        .replace("text-", "bg-")
+                        .replace("/20", "") + " text-white"
+                    : ""
+                }
               >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                )}
-                Get Price Suggestion
+                {statusConfig[status].label}
               </Button>
+            ))}
+          </div>
 
-              {suggestedPrice && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-4"
-                >
-                  <div className="glass-card px-6 py-4 flex items-center gap-4 border-primary/30 bg-primary/5">
-                    <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-                      <IndianRupee className="w-6 h-6 text-primary-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Suggested Price
-                      </p>
-                      <p className="text-2xl font-bold text-primary">
-                        ₹{suggestedPrice.toLocaleString()}/kg
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="h-full border-primary text-primary hover:bg-primary/10"
-                    onClick={startSelling}
-                  >
-                    List for Sale <Package className="w-4 h-4 ml-2" />
-                  </Button>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === "demand" && (
-          <motion.div
-            key="demand"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="glass-card p-6"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 className="w-5 h-5 text-secondary" />
-              <h3 className="text-lg font-semibold">
-                AI-Driven Demand Forecasting
-              </h3>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Reuse common fields or simplified versions */}
-              <div>
-                <label className="form-label">Date</label>
-                <input
-                  type="text"
-                  value={demandDate}
-                  onChange={(e) => setDemandDate(e.target.value)}
-                  className="form-field"
-                  placeholder="YYYY/MM/DD"
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Commodity Group</label>
-                <Select
-                  value={dCommodityGroup}
-                  onValueChange={(val) => {
-                    setDCommodityGroup(val);
-                    setDCropType(cropTypes[val][0]);
-                  }}
-                >
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {commodityGroups.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="form-label">Crop Type</label>
-                <Select value={dCropType} onValueChange={setDCropType}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cropTypes[dCommodityGroup].map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="form-label">State</label>
-                <Select value={dState} onValueChange={setDState}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {states.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="form-label">Market</label>
-                <Select
-                  value={dMarketLocation}
-                  onValueChange={setDMarketLocation}
-                >
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {marketLocations.map((l) => (
-                      <SelectItem key={l} value={l}>
-                        {l}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="form-label">Season</label>
-                <Select value={dSeason} onValueChange={setDSeason}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {seasons.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Demand Specifics */}
-              <div>
-                <label className="form-label">Total Qty Sold</label>
-                <input
-                  type="number"
-                  value={totalQtySold}
-                  onChange={(e) => setTotalQtySold(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-              <div>
-                <label className="form-label">Avg Price/kg</label>
-                <input
-                  type="number"
-                  value={avgPrice}
-                  onChange={(e) => setAvgPrice(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-              <div>
-                <label className="form-label">Hist. Demand (7d)</label>
-                <input
-                  type="number"
-                  value={histDemand}
-                  onChange={(e) => setHistDemand(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-              <div>
-                <label className="form-label">Price Trend (7d)</label>
-                <input
-                  type="number"
-                  value={priceTrend}
-                  onChange={(e) => setPriceTrend(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-              <div>
-                <label className="form-label">Est. Production</label>
-                <input
-                  type="number"
-                  value={estProduction}
-                  onChange={(e) => setEstProduction(Number(e.target.value))}
-                  className="form-field"
-                />
-              </div>
-              <div>
-                <label className="form-label">Festival Flag (0/1)</label>
-                <Select value={festivalFlag} onValueChange={setFestivalFlag}>
-                  <SelectTrigger className="form-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">No</SelectItem>
-                    <SelectItem value="1">Yes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="md:col-span-1">
-                <label className="form-label">
-                  Policy Score: {policyScore[0]}
-                </label>
-                <Slider
-                  value={policyScore}
-                  onValueChange={setPolicyScore}
-                  min={0}
-                  max={1}
-                  step={0.1}
-                />
-              </div>
-              <div className="md:col-span-1">
-                <label className="form-label">
-                  Weather Index: {weatherIndex[0]}
-                </label>
-                <Slider
-                  value={weatherIndex}
-                  onValueChange={setWeatherIndex}
-                  min={0}
-                  max={1}
-                  step={0.1}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-4">
-              <Button
-                variant="hero"
-                onClick={handleGetDemandForecast}
-                disabled={loading}
-                className="bg-secondary hover:bg-secondary/90"
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                )}
-                Forecast Demand
-              </Button>
-
-              {demandResult && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="glass-card px-6 py-4 flex items-center gap-4 border-secondary/30 bg-secondary/5"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-secondary-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Demand Level:{" "}
-                      <span className="font-bold text-foreground">
-                        {demandResult.demand_level}
-                      </span>
-                    </p>
-                    <p className="text-2xl font-bold text-secondary">
-                      Score: {demandResult.demand_score}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === "sell" && (
-          <motion.div
-            key="sell"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="glass-card p-6"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <Package className="w-5 h-5 text-secondary" />
-              <h3 className="text-lg font-semibold">List Product for Sale</h3>
-            </div>
-
-            {!suggestedPrice ? (
-              <div className="text-center py-12">
+          {/* Orders List */}
+          <div className="space-y-4">
+            {filteredOrders.length === 0 ? (
+              <div className="glass-card p-12 text-center">
                 <Package className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground mb-4">
-                  Get a price suggestion first to list your product
+                <h3 className="text-xl font-semibold mb-2">No Orders Found</h3>
+                <p className="text-muted-foreground">
+                  There are no orders matching the current filter.
                 </p>
-                <Button variant="outline" onClick={() => setActiveTab("price")}>
-                  Go to Price Suggestion
-                </Button>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="glass-card p-4 bg-muted/20">
-                    <p className="text-sm text-muted-foreground">Crop</p>
-                    <p className="font-semibold">{cropType}</p>
-                  </div>
-                  <div className="glass-card p-4 bg-muted/20">
-                    <p className="text-sm text-muted-foreground">Quantity</p>
-                    <p className="font-semibold">{quantity} kg</p>
-                  </div>
-                  <div className="glass-card p-4 bg-muted/20">
-                    <p className="text-sm text-muted-foreground">
-                      Quality Grade
-                    </p>
-                    <p className="font-semibold">{qualityGrade}/5</p>
-                  </div>
-                  <div className="glass-card p-4 bg-muted/20">
-                    <p className="text-sm text-muted-foreground">Location</p>
-                    <p className="font-semibold">
-                      {marketLocation}, {state}
-                    </p>
-                  </div>
-                </div>
+              filteredOrders.map((order) => {
+                const StatusIcon = statusConfig[order.status].icon;
+                return (
+                  <motion.div
+                    key={order.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass-card p-6 border-l-4"
+                    style={{
+                      borderLeftColor:
+                        order.status === "delivered" ? "#22c55e" : "#f59e0b",
+                    }} // Simplified color logic
+                  >
+                    <div className="flex flex-col lg:flex-row gap-6">
+                      {/* Order Info */}
+                      <div className="flex-1 space-y-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span
+                                className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                  statusConfig[order.status].color
+                                } flex items-center gap-1`}
+                              >
+                                <StatusIcon className="w-3 h-3" />
+                                {statusConfig[order.status].label}
+                              </span>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {order.id}
+                              </span>
+                            </div>
+                            <h3 className="text-lg font-bold">
+                              {order.productName} ({order.quantity} kg)
+                            </h3>
+                          </div>
+                        </div>
 
-                <div className="glass-card p-4 bg-primary/5 border-primary/20">
-                  <label className="form-label">
-                    Your Selling Price (₹/kg)
-                  </label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <div className="flex items-center gap-2 flex-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() =>
-                          setSellingPrice(Math.max(0, sellingPrice - 50))
-                        }
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <input
-                        type="number"
-                        value={sellingPrice}
-                        onChange={(e) =>
-                          setSellingPrice(Number(e.target.value))
-                        }
-                        className="form-field text-center text-lg font-bold"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setSellingPrice(sellingPrice + 50)}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Suggested:{" "}
-                      <span className="text-primary font-semibold">
-                        ₹{suggestedPrice?.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                        <div className="grid md:grid-cols-2 gap-4 text-sm">
+                          <div className="space-y-2">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <MapPin className="w-4 h-4" />
+                                <span>From (Farmer):</span>
+                              </div>
+                              <div className="pl-6">
+                                <span className="text-foreground font-medium block">
+                                  {order.farmerLocation}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  {order.farmerAddress?.slice(0, 6)}...
+                                  {order.farmerAddress?.slice(-4)}
+                                </span>
+                              </div>
+                            </div>
 
-                <Button
-                  variant="hero"
-                  size="lg"
-                  onClick={handleListForSale}
-                  disabled={loading}
-                  className="w-full bg-secondary hover:bg-secondary/90"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Tag className="w-5 h-5 mr-2" />
-                  )}
-                  List for Sale
-                </Button>
-              </div>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <MapPin className="w-4 h-4" />
+                                <span>To (Buyer):</span>
+                              </div>
+                              <div className="pl-6">
+                                <span className="text-foreground font-medium block">
+                                  {order.buyerLocation}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  {order.buyerAddress?.slice(0, 6)}...
+                                  {order.buyerAddress?.slice(-4)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Calendar className="w-4 h-4" />
+                              <span>
+                                Created:{" "}
+                                <span className="text-foreground font-medium">
+                                  {order.createdAt.toLocaleDateString()}
+                                </span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Clock className="w-4 h-4" />
+                              <span>
+                                Est. Delivery:{" "}
+                                <span className="text-foreground font-medium">
+                                  {order.estimatedDelivery.toLocaleDateString()}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-col justify-center gap-2 min-w-[200px] border-t lg:border-t-0 lg:border-l border-border pt-4 lg:pt-0 lg:pl-6">
+                        <p className="text-sm font-medium text-muted-foreground mb-1">
+                          Update Status
+                        </p>
+                        {order.status === "pending" && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleUpdateStatus(order.id, "picked_up")
+                            }
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <Package className="w-4 h-4 mr-2" /> Mark Picked Up
+                          </Button>
+                        )}
+                        {order.status === "picked_up" && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleUpdateStatus(order.id, "in_transit")
+                            }
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <Truck className="w-4 h-4 mr-2" /> Start Transit
+                          </Button>
+                        )}
+                        {order.status === "in_transit" && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleUpdateStatus(order.id, "delivered")
+                            }
+                            className="w-full bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" /> Mark
+                            Delivered
+                          </Button>
+                        )}
+                        {order.status === "delivered" && (
+                          <div className="text-center p-2 bg-green-500/10 text-green-600 rounded-lg font-medium text-sm">
+                            Order Completed
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </>
+      )}
+
+      {/* Account Selector Modal */}
     </div>
   );
 };
 
-export default FarmerDashboard;
+export default LogisticsDashboard;
